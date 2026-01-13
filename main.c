@@ -527,6 +527,18 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
         case NETDEV_EVENT_RX_STARTED:
             puts("Data reception started");
             break;
+        
+       case NETDEV_EVENT_RX_COMPLETE:
+            len = dev->driver->recv(dev, NULL, 0, 0);
+            dev->driver->recv(dev, message, len, &packet_info);
+            
+            printf("{RSSI: %i, SNR: %i, Len: %d}\n",
+                packet_info.rssi, (int)packet_info.snr, (int)len);
+            
+            filter_and_decode_custom(message, len); 
+            
+            break;
+
 
         case NETDEV_EVENT_TX_COMPLETE:
             sx127x_set_sleep(&sx127x);
@@ -539,19 +551,7 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
         case NETDEV_EVENT_TX_TIMEOUT:
             sx127x_set_sleep(&sx127x);
             break;
-        case NETDEV_EVENT_RX_COMPLETE:
-            len = dev->driver->recv(dev, NULL, 0, 0);
-            dev->driver->recv(dev, message, len, &packet_info);
-            
-            // Affiche les infos techniques (RSSI, SNR)
-            printf("{RSSI: %i, SNR: %i, Len: %d}\n",
-                packet_info.rssi, (int)packet_info.snr, (int)len);
-            
-            // APPEL DE LA NOUVELLE FONCTION ICI
-            filter_and_decode_custom(message, len); 
-            
-            break;
-
+        
         default:
             printf("Unexpected netdev event received: %d\n", event);
             break;
@@ -590,7 +590,7 @@ int init_sx1272_cmd(int argc, char **argv)
 
 	    netdev->driver = &sx127x_driver;
 
-        netdev->event_callback = _event_cb;
+      netdev->event_callback = _event_cb;
 
 //        printf("%8x\n", (unsigned int)netdev->driver);
 //        printf("%8x\n", (unsigned int)netdev->driver->init);
@@ -625,7 +625,7 @@ int send_custom_cmd(int argc, char **argv)
 
     // Données fictives pour l'exemple
     uint8_t my_src_id = 0x22;
-    uint8_t target_dest_id =11; // Broadcast
+    uint8_t target_dest_id =0xFF; // Broadcast
     uint8_t my_role = 0x10; 
 
     // CORRECCIÓN: argv[1] es un string (char *), no un char.
@@ -668,13 +668,8 @@ void filter_and_decode_custom(char *buffer, size_t length) {
     
     // 1. Vérification de la taille minimale (Header seulement)
     // On calcule la taille du header sans le payload (237)
-    size_t header_size = sizeof(struct custom_mesh) - 237;
-
-    if (length < header_size) {
-        // Le paquet est trop petit pour contenir nos infos, on ignore
-        return; 
-    }
-
+   
+    printf("lenght: %d",length);
     // 2. Casting : On "plaque" notre structure sur les données reçues
     struct custom_mesh *paquet = (struct custom_mesh *)buffer;
 
